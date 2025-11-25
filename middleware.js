@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import arcjet, { createMiddleware, detectBot, shield } from '@arcjet/next';
 
 const isProtectedRoute = createRouteMatcher([
   '/dashboard(.*)',
@@ -6,7 +7,20 @@ const isProtectedRoute = createRouteMatcher([
   '/transaction(.*)',
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
+const aj = arcjet({
+  key: process.env.ARCJET_KEY,
+  rules: [
+    shield({
+      mode: 'LIVE',
+    }),
+    detectBot({
+      mode: 'LIVE',
+      allow: ['CATEGORY:SEARCH_ENGINE', 'GO_HTTP'],
+    }),
+  ],
+});
+
+const clerkMW = clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   if (!userId && isProtectedRoute(req)) {
     // If the user is not authenticated and trying to access a protected route, redirect to sign-in
@@ -15,6 +29,8 @@ export default clerkMiddleware(async (auth, req) => {
     return redirectToSignIn();
   }
 });
+
+export default createMiddleware(aj, clerkMW);
 
 export const config = {
   matcher: [
